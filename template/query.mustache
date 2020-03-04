@@ -1,0 +1,596 @@
+package {{packagePath}}.domain.query;
+
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.*;
+import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.function.Consumer;
+
+
+public class {{modelName}}QueryBuilder {
+
+    public static final String INDEX_NAME = "{{{indexName}}}";
+
+    public static final String INDEX_TYPE = "{{{indexType}}}";
+
+    private static final String[] INDEX_ARRAY = new String[]{INDEX_NAME};
+
+    private static final String[] TYPE_ARRAY = new String[]{INDEX_TYPE};
+
+    private String[] indices = INDEX_ARRAY;
+
+    private String[] types = TYPE_ARRAY;
+
+    private Integer size = 20;
+
+    private Integer from = 0;
+
+    private BoolQueryBuilder boolQueryBuilder;
+
+    private AggregationBuilder aggregationBuilder;
+
+    private List<BoolQueryBuilder> queryBuilders;
+
+    private SearchSourceBuilder searchSourceBuilder;
+
+    private SearchRequest searchRequest;
+
+    private RestHighLevelClient restHighLevelClient;
+
+    private RequestOptions requestOptions = RequestOptions.DEFAULT;
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    private ObjectMapper objectMapper = OBJECT_MAPPER;
+
+
+    public {{modelName}}QueryBuilder() {
+
+    }
+
+    public {{modelName}}QueryBuilder(RestHighLevelClient restHighLevelClient) {
+        this.restHighLevelClient = restHighLevelClient;
+    }
+
+    public static {{modelName}}QueryBuilder create() {
+        return new {{modelName}}QueryBuilder();
+    }
+
+    public static {{modelName}}QueryBuilder create(RestHighLevelClient restHighLevelClient) {
+        return new {{modelName}}QueryBuilder(restHighLevelClient);
+    }
+
+    public {{modelName}}QueryBuilder indices(String... indices) {
+        this.indices = indices;
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder types(String... types) {
+        this.types = types;
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder restHighLevelClient(RestHighLevelClient restHighLevelClient) {
+        this.restHighLevelClient = restHighLevelClient;
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder searchRequest(SearchRequest searchRequest) {
+        this.searchRequest = searchRequest;
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder objectMapper(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder routing(String routing){
+        build().routing(routing);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder page(int page, int size) {
+        if (page <= 0 || size <= 0) {
+            throw new RuntimeException("page or size for condition must greater 0");
+        }
+        this.size = size;
+        this.from = (page - 1) * size;
+        return this;
+    }
+
+
+    public {{modelName}}QueryBuilder sort(String field, SortOrder sortOrder) {
+        buildSearchSource().sort(field, sortOrder);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder asc(String field) {
+        buildSearchSource().sort(field, SortOrder.ASC);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder desc(String field) {
+        buildSearchSource().sort(field, SortOrder.DESC);
+        return this;
+    }
+    public {{modelName}}QueryBuilder columns(String... columns) {
+        fetchSource(columns,null);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder ignoreColumns(String... columns) {
+        fetchSource(null,columns);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder fetchSource(String[] include, String[] exclude) {
+        buildSearchSource().fetchSource(include, exclude);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder must(QueryBuilder queryBuilder) {
+        getBoolQueryBuilder().must(queryBuilder);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder mustNot(QueryBuilder queryBuilder) {
+        getBoolQueryBuilder().mustNot(queryBuilder);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder filter(QueryBuilder queryBuilder) {
+        getBoolQueryBuilder().filter(queryBuilder);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder should(QueryBuilder queryBuilder) {
+        getBoolQueryBuilder().should(queryBuilder);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder aggregation(AggregationBuilder aggregationBuilder) {
+        this.aggregationBuilder = aggregationBuilder;
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder suggest(SuggestBuilder suggestBuilder) {
+        buildSearchSource().suggest(suggestBuilder);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder collapse(CollapseBuilder collapse) {
+        buildSearchSource().collapse(collapse);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder highlighter(HighlightBuilder highlightBuilder) {
+        buildSearchSource().highlighter(highlightBuilder);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder fetchSource(boolean fetch) {
+        buildSearchSource().fetchSource(fetch);
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder or() {
+        if (this.queryBuilders == null) {
+            this.queryBuilders = new ArrayList<>();
+        }
+        this.queryBuilders.add(this.getBoolQueryBuilder());
+        this.boolQueryBuilder = QueryBuilders.boolQuery();
+        return this;
+    }
+
+    public SearchSourceBuilder buildSearchSource() {
+        if (this.searchSourceBuilder != null) {
+            return this.searchSourceBuilder;
+        }
+
+        if (this.queryBuilders != null) {
+            BoolQueryBuilder or = QueryBuilders.boolQuery();
+            for (BoolQueryBuilder queryBuilder : this.queryBuilders) {
+                or.should(queryBuilder);
+            }
+            or.should(this.boolQueryBuilder);
+            this.boolQueryBuilder = or;
+        }
+
+        this.searchSourceBuilder = new SearchSourceBuilder()
+                .size(this.size)
+                .from(this.from);
+        if (this.boolQueryBuilder != null) {
+            this.searchSourceBuilder.query(this.boolQueryBuilder);
+        }
+
+        if (this.aggregationBuilder != null) {
+            this.searchSourceBuilder.aggregation(this.aggregationBuilder);
+        }
+
+        return this.searchSourceBuilder;
+    }
+
+    public SearchRequest build() {
+        if (this.searchRequest != null) {
+            return this.searchRequest.indices(this.indices);
+        }
+        this.searchRequest = new SearchRequest(this.indices, buildSearchSource());
+        return searchRequest;
+    }
+
+    public SearchResponse search() throws IOException {
+        return restHighLevelClient.search(build(), this.requestOptions);
+    }
+
+
+    public <T> List<T> search(Class<T> clazz) throws IOException {
+        SearchResponse response = search();
+        SearchHit[] hits = response.getHits().getHits();
+        List<T> list = new ArrayList<>(hits.length);
+        for (SearchHit hit : hits) {
+            T t = objectMapper.readValue(hit.getSourceAsString(), clazz);
+            list.add(t);
+        }
+        return list;
+    }
+
+    public <T> SearchResponse search(Class<T> clazz, Consumer<T> consumer) throws IOException {
+        SearchResponse response = search();
+        SearchHit[] hits = response.getHits().getHits();
+        for (SearchHit hit : hits) {
+            T t = objectMapper.readValue(hit.getSourceAsString(), clazz);
+            consumer.accept(t);
+        }
+        return response;
+    }
+
+    public SearchResponse scroll() throws IOException {
+        build().scroll("2m");
+        return search();
+    }
+
+    public SearchResponse scroll(TimeValue timeValue) throws IOException {
+        build().scroll(new Scroll(timeValue));
+        return search();
+    }
+
+    public SearchResponse scroll(String scrollId) throws IOException {
+        return restHighLevelClient.scroll(new SearchScrollRequest(scrollId), this.requestOptions);
+    }
+
+    public SearchResponse scroll(Consumer<SearchHit> consumer) throws IOException {
+        return scroll(TimeValue.timeValueMinutes(5), consumer);
+    }
+
+    public SearchResponse scroll(TimeValue timeValue, Consumer<SearchHit> consumer) throws IOException {
+        SearchResponse response = scroll(timeValue);
+        SearchHit[] hits = response.getHits().getHits();
+        while (hits.length > 0) {
+            for (SearchHit hit : hits) {
+                consumer.accept(hit);
+            }
+
+            response = scroll(response.getScrollId());
+            hits = response.getHits().getHits();
+        }
+        return response;
+    }
+
+    {{#fields}}
+{{#isNormal}}
+    public {{modelName}}QueryBuilder and{{upperName}}Exists() {
+        getBoolQueryBuilder().mustNot(QueryBuilders.existsQuery("{{name}}"));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotExists() {
+        getBoolQueryBuilder().filter(QueryBuilders.existsQuery("{{name}}"));
+        return this;
+    }
+
+
+    public {{modelName}}QueryBuilder and{{upperName}}Between({{{propertyType}}} {{lowerName}}1, {{{propertyType}}} {{lowerName}}2) {
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").lt({{lowerName}}1).gt({{lowerName}}2));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotBetween({{{propertyType}}} {{lowerName}}1, {{{propertyType}}} {{lowerName}}2) {
+        getBoolQueryBuilder().mustNot(QueryBuilders.rangeQuery("{{name}}").lt({{lowerName}}1).gt({{lowerName}}2));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}GreaterThan({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").gt({{lowerName}}));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}GreaterThanOrEqualTo({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").gte({{lowerName}}));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}LessThan({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").lt({{lowerName}}));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}LessThanOrEqualTo({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").lte({{lowerName}}));
+        return this;
+    }
+
+
+    public {{modelName}}QueryBuilder and{{upperName}}EqualTo({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().filter(QueryBuilders.termQuery("{{name}}", {{lowerName}}));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotEqualTo({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().mustNot(QueryBuilders.termQuery("{{name}}", {{lowerName}}));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}In(List<{{{propertyType}}}> {{lowerName}}) {
+        if({{lowerName}}.size()==1){
+            return and{{upperName}}EqualTo({{lowerName}}.get(0));
+        }
+        getBoolQueryBuilder().filter(QueryBuilders.termsQuery("{{name}}", {{lowerName}}));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotIn(List<{{{propertyType}}}> {{lowerName}}) {
+        getBoolQueryBuilder().mustNot(QueryBuilders.termsQuery("{{name}}", {{lowerName}}));
+        return this;
+    }
+
+{{/isNormal}}
+{{#isEpochMillis}}
+    public {{modelName}}QueryBuilder and{{upperName}}exists() {
+        getBoolQueryBuilder().mustNot(QueryBuilders.existsQuery("{{name}}"));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotExists() {
+        getBoolQueryBuilder().filter(QueryBuilders.existsQuery("{{name}}"));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}Between(java.util.Date {{lowerName}}1, java.util.Date {{lowerName}}2) {
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").lt({{lowerName}}1.getTime()).gt({{lowerName}}2.getTime()));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotBetween({{{propertyType}}} {{lowerName}}1, {{{propertyType}}} {{lowerName}}2) {
+        getBoolQueryBuilder().mustNot(QueryBuilders.rangeQuery("{{name}}").lt({{lowerName}}1.getTime()).gt({{lowerName}}2.getTime()));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}GreaterThan({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").gt({{lowerName}}.getTime()));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}GreaterThanOrEqualTo({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").gte({{lowerName}}.getTime()));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}LessThan({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").lt({{lowerName}}.getTime()));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}LessThanOrEqualTo({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").lte({{lowerName}}.getTime()));
+        return this;
+    }
+
+
+    public {{modelName}}QueryBuilder and{{upperName}}EqualTo({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().filter(QueryBuilders.termQuery("{{name}}", {{lowerName}}.getTime()));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotEqualTo({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().mustNot(QueryBuilders.termQuery("{{name}}", {{lowerName}}.getTime()));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}In(List<{{{propertyType}}}> {{lowerName}}) {
+        List<Long> formats = dateFormat({{lowerName}});
+        getBoolQueryBuilder().filter(QueryBuilders.termsQuery("{{name}}", formats));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotIn(List<{{{propertyType}}}> {{lowerName}}) {
+        List<Long> formats = dateFormat({{lowerName}});
+        getBoolQueryBuilder().mustNot(QueryBuilders.termsQuery("{{name}}", formats));
+        return this;
+    }
+
+{{/isEpochMillis}}
+{{#isDate}}
+    public {{modelName}}QueryBuilder and{{upperName}}Exists() {
+        getBoolQueryBuilder().mustNot(QueryBuilders.existsQuery("{{name}}"));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotExists() {
+        getBoolQueryBuilder().filter(QueryBuilders.existsQuery("{{name}}"));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}Between({{{propertyType}}} {{lowerName}}1, {{{propertyType}}} {{lowerName}}2) {
+        String format1 = dateFormat("{{{format}}}",{{lowerName}}1);
+        String format2 = dateFormat("{{{format}}}",{{lowerName}}2);
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").lt(format1).gt(format2));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotBetween({{{propertyType}}} {{lowerName}}1, {{{propertyType}}} {{lowerName}}2) {
+        String format1 = dateFormat("{{{format}}}",{{lowerName}}1);
+        String format2 = dateFormat("{{{format}}}",{{lowerName}}2);
+        getBoolQueryBuilder().mustNot(QueryBuilders.rangeQuery("{{name}}").lt(format1).gt(format2));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}GreaterThan({{{propertyType}}} {{lowerName}}) {
+        String format = dateFormat("{{{format}}}",{{lowerName}});
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").gt(format));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}GreaterThanOrEqualTo({{{propertyType}}} {{lowerName}}) {
+        String format = dateFormat("{{{format}}}",{{lowerName}});
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").gte(format));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}LessThan({{{propertyType}}} {{lowerName}}) {
+        String format = dateFormat("{{{format}}}",{{lowerName}});
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").lt(format));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}LessThanOrEqualTo({{{propertyType}}} {{lowerName}}) {
+        String format = dateFormat("{{{format}}}",{{lowerName}});
+        getBoolQueryBuilder().filter(QueryBuilders.rangeQuery("{{name}}").lte(format));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}EqualTo({{{propertyType}}} {{lowerName}}) {
+        String format = dateFormat("{{{format}}}",{{lowerName}});
+        getBoolQueryBuilder().filter(QueryBuilders.termQuery("{{name}}", format));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotEqualTo({{{propertyType}}} {{lowerName}}) {
+        String format = dateFormat("{{{format}}}",{{lowerName}});
+        getBoolQueryBuilder().mustNot(QueryBuilders.termQuery("{{name}}",format));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}In(List<{{{propertyType}}}> {{lowerName}}) {
+        List<String> formats =  dateFormat("{{{format}}}",{{lowerName}});
+        getBoolQueryBuilder().filter(QueryBuilders.termsQuery("{{name}}", formats));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotIn(List<{{{propertyType}}}> {{lowerName}}) {
+        List<String> formats =  dateFormat("{{{format}}}",{{lowerName}});
+        getBoolQueryBuilder().mustNot(QueryBuilders.termsQuery("{{name}}",formats));
+        return this;
+    }
+
+
+{{/isDate}}
+{{#isText}}
+    public {{modelName}}QueryBuilder and{{upperName}}Like({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().filter(QueryBuilders.matchQuery("{{name}}", {{lowerName}}));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}Like({{{propertyType}}} {{lowerName}}, Operator operator) {
+        getBoolQueryBuilder().filter(QueryBuilders.matchQuery("{{name}}", {{lowerName}}).operator(operator));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}MustLike({{{propertyType}}} {{lowerName}}) {
+        getBoolQueryBuilder().must(QueryBuilders.matchQuery("{{name}}", {{lowerName}}));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}MustLike({{{propertyType}}} {{lowerName}}, Operator operator) {
+        getBoolQueryBuilder().must(QueryBuilders.matchQuery("{{name}}", {{lowerName}}).operator(operator));
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotLike({{{propertyType}}} {{lowerName}}) {
+        if ({{lowerName}} != null) {
+            getBoolQueryBuilder().mustNot(QueryBuilders.matchQuery("{{name}}", {{lowerName}}));
+        }
+        return this;
+    }
+
+    public {{modelName}}QueryBuilder and{{upperName}}NotLike({{{propertyType}}} {{lowerName}}, Operator operator) {
+        if ({{lowerName}} != null) {
+            getBoolQueryBuilder().mustNot(QueryBuilders.matchQuery("{{name}}", {{lowerName}}).operator(operator));
+        }
+        return this;
+    }
+
+{{/isText}}
+{{#isGeoPoint}}
+    public {{modelName}}QueryBuilder and{{upperName}}GeoPoint(double lat, double lon, double distance, DistanceUnit unit) {
+        GeoDistanceQueryBuilder geoDistanceQueryBuilder = QueryBuilders.geoDistanceQuery("{{name}}")
+                .point(new GeoPoint(lat, lon))
+                .distance(distance, unit);
+        getBoolQueryBuilder().filter(geoDistanceQueryBuilder);
+        return this;
+    }
+
+{{/isGeoPoint}}
+{{/fields}}
+    private String dateFormat(String pattern, Date date) {
+        return java.time.format.DateTimeFormatter.ofPattern(pattern).format(java.time.Instant.ofEpochMilli(date.getTime()));
+    }
+
+    private List<String> dateFormat(String pattern, List<Date> date) {
+        List<String> formats = new ArrayList<>(date.size());
+        for (Date d : date) {
+            String format = dateFormat(pattern, d);
+            formats.add(format);
+        }
+        return formats;
+    }
+
+    private List<Long> dateFormat(List<Date> date) {
+        List<Long> formats = new ArrayList<>(date.size());
+        for (Date d : date) {
+            formats.add(d.getTime());
+        }
+        return formats;
+    }
+
+    private BoolQueryBuilder getBoolQueryBuilder() {
+        if (this.boolQueryBuilder == null) {
+            this.boolQueryBuilder = QueryBuilders.boolQuery();
+        }
+        return this.boolQueryBuilder;
+    }
+
+    public interface Column {
+{{#fields}}
+{{#remark}}
+        /**
+         * {{{remark}}}
+         */
+{{/remark}}
+        String {{lowerName}} = "{{name}}";
+{{/fields}}
+
+    }
+
+
+}

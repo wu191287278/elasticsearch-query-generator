@@ -1,0 +1,62 @@
+{
+  "user": {
+    "mappings": {
+      "_doc": {
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "about": {
+            "type": "text",
+            "analyzer": "english"
+          },
+          "nickname": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword"
+              }
+            },
+            "analyzer": "english"
+          },
+          "email": {
+            "type": "keyword"
+          },
+          "phone": {
+            "type": "keyword"
+          },
+          "location": {
+            "type": "geo_point"
+          },
+          "createdAt": {
+            "type": "date",
+            "format": "epoch_millis"
+          },
+          "updatedAt": {
+            "type": "date",
+            "format": "yyyy-MM-dd HH:mm:ss"
+          },
+          "userProperty": {
+            "properties": {
+              "sex": {
+                "type": "integer"
+              },
+              "province": {
+                "type": "text",
+                "analyzer": "english"
+              },
+              "city": {
+                "type": "text",
+                "analyzer": "english"
+              },
+              "address": {
+                "type": "text",
+                "analyzer": "english"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

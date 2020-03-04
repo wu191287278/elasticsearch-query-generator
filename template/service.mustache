@@ -1,0 +1,23 @@
+package {{{packagePath}}}.service;
+
+
+import {{{packagePath}}}.domain.{{modelName}};
+
+import org.elasticsearch.client.RestHighLevelClient;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.util.Map;
+
+@Service
+public class {{{modelName}}}Service {
+
+    public static final String INDEX_NAME = "{{{indexName}}}";
+
+    public static final String INDEX_TYPE = "{{{indexType}}}";
+
+    @Autowired
+    private RestHighLevelClient restHighLevelClient;
+
+}

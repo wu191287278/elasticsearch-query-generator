@@ -1,0 +1,31 @@
+package {{{packagePath}}}.domain;
+
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import lombok.Data;
+import lombok.experimental.Accessors;
+
+
+@Data
+@Accessors(chain = true)
+public class {{{modelName}}} {
+
+{{#fields}}
+    {{#remark}}
+    /**
+     * {{{remark}}}
+     */
+    {{/remark}}
+    {{#isDate}}
+    @JsonFormat(pattern = "{{{format}}}")
+    {{/isDate}}
+    {{#isEpochMillis}}
+    @JsonFormat(shape = JsonFormat.Shape.NUMBER)
+    {{/isEpochMillis}}
+    @JsonProperty(value = "{{name}}")
+    private {{{propertyType}}} {{lowerName}};
+
+{{/fields}}
+
+}

@@ -1,0 +1,166 @@
+package {{{packagePath}}}.controller;
+
+
+import {{{packagePath}}}.domain.{{modelName}};
+import {{{packagePath}}}.service.{{modelName}}Service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
+
+
+
+@Slf4j
+@RequestMapping(value = "search")
+@RestController
+public class {{modelName}}Controller {
+
+    @Autowired
+    private RestHighLevelClient restHighLevelClient;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+
+    /**
+     * {{{indexName}}}
+     * {{#fields}}
+     * @param {{{lowerName}}} {{#remark}}{{{remark}}}{{/remark}}{{/fields}}
+     * @return
+     * @throws IOException
+     */
+    @GetMapping("{{{lowerIndexName}}}")
+    public List<{{{modelName}}}> search(@RequestParam(value = "page", defaultValue = "1") int page,
+                            @RequestParam(value = "size", defaultValue = "20") int size,
+    {{#fields}}
+        {{#isNormal}}
+                            @RequestParam(value = "{{{lowerName}}}", required = false) {{{propertyType}}} {{{lowerName}}},
+        {{/isNormal}}
+        {{#isDate}}
+                            @RequestParam(value = "start{{{upperName}}}", required = false) {{{propertyType}}} start{{{upperName}}},
+                            @RequestParam(value = "end{{{upperName}}}", required = false) {{{propertyType}}} end{{{upperName}}},
+        {{/isDate}}
+        {{#isEpochMillis}}
+                            @RequestParam(value = "start{{{upperName}}}", required = false) {{{propertyType}}} start{{{upperName}}},
+                            @RequestParam(value = "end{{{upperName}}}", required = false) {{{propertyType}}} end{{{upperName}}},
+        {{/isEpochMillis}}
+        {{#isText}}
+                            @RequestParam(value = "{{{lowerName}}}", required = false) {{{propertyType}}} {{{lowerName}}},
+        {{/isText}}
+        {{#isGeoPoint}}
+                            @RequestParam(value = "{{{lowerName}}}", required = false) {{{propertyType}}} {{{lowerName}}},
+        {{/isGeoPoint}}
+    {{/fields}}
+                            @RequestParam(value = "orderBy", required = false) String orderBy,
+                            @RequestParam(value = "sort", required = false) String sort) throws IOException {
+
+        if ((page <= 0 || size <= 0) || ((page * size) > 10000)) {
+            page = 1;
+            size = 20;
+        }
+
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+
+{{#fields}}
+{{#isNormal}}
+        if (!StringUtils.isEmpty({{lowerName}})){
+            query.filter(QueryBuilders.termQuery("{{name}}", {{lowerName}}));
+        }
+{{/isNormal}}
+{{#isEpochMillis}}
+        if (Objects.nonNull(start{{upperName}}) || Objects.nonNull(end{{upperName}})){
+            RangeQueryBuilder rangeQuery=QueryBuilders.rangeQuery("{{name}}");
+            if(Objects.nonNull(start{{upperName}})){
+                rangeQuery.gte(start{{upperName}}.getTime());
+            }
+
+            if(Objects.nonNull(start{{upperName}})){
+                rangeQuery.lte(end{{upperName}}.getTime());
+            }
+            query.filter(rangeQuery);
+        }
+{{/isEpochMillis}}
+{{#isDate}}
+        if (Objects.nonNull(start{{upperName}}) || Objects.nonNull(end{{upperName}})){
+            RangeQueryBuilder rangeQuery=QueryBuilders.rangeQuery("{{name}}");
+
+            if(Objects.nonNull(start{{upperName}})){
+                String startFormat = java.time.format.DateTimeFormatter.ofPattern("{{{format}}}")
+                        .format(java.time.Instant.ofEpochMilli(start{{upperName}}.getTime()));
+                rangeQuery.gte(startFormat);
+            }
+
+            if(Objects.nonNull(end{{upperName}})){
+                String endFormat = java.time.format.DateTimeFormatter.ofPattern("{{{format}}}")
+                        .format(java.time.Instant.ofEpochMilli(end{{upperName}}.getTime()));
+                rangeQuery.lte(endFormat);
+            }
+        }
+{{/isDate}}
+{{#isText}}
+        if (!StringUtils.isEmpty({{lowerName}})){
+            query.filter(QueryBuilders.matchQuery("{{name}}", {{lowerName}}));
+        }
+{{/isText}}
+{{#isGeoPoint}}
+        if (!StringUtils.isEmpty({{lowerName}})){
+            GeoDistanceQueryBuilder geoDistanceQueryBuilder = QueryBuilders.geoDistanceQuery("{{lowerName}}")
+                    .distance(100, DistanceUnit.KILOMETERS)
+                    .point({{lowerName}}[0], {{lowerName}}[1]);
+            query.must(geoDistanceQueryBuilder);
+        }
+{{/isGeoPoint}}
+
+{{/fields}}
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
+                .from((page - 1) * size)
+                .size(size)
+                .query(query);
+
+        if (Objects.nonNull(orderBy)) {
+            searchSourceBuilder.sort(orderBy, "desc".equalsIgnoreCase(sort) ? SortOrder.DESC : SortOrder.ASC);
+        }
+
+        SearchRequest searchRequest = new SearchRequest({{modelName}}Service.INDEX_NAME)
+                        .source(searchSourceBuilder);
+        SearchResponse response = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
+        SearchHits hits = response.getHits();
+        return Stream.of(hits.getHits())
+                .map(SearchHit::getSourceAsString)
+                .map(s->{
+                    try{
+                       return objectMapper.readValue(s,{{{modelName}}}.class);
+                    }catch(Exception e){
+                        log.error(e.getMessage(),e);
+                    }
+                   return null;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+}

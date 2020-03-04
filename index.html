@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+    <link href="https://cdn.bootcss.com/twitter-bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <style type="text/css">
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+<section style="height: 50px;">
+    <nav class="navbar navbar-default">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse"
+                        data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="javascript:void(0)">ElasticSearch-QueryGenerator</a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <div class="navbar-form navbar-right">
+                    <div class="form-group">
+                        <select id="selectTemplate" onchange="changeTemplate()" class="form-control">
+                            <option value="settingTemplateDiv">Setting</option>
+                            <option value="queryTemplateDiv">Query</option>
+                            <option value="controllerTemplateDiv">Controller</option>
+                            <option value="serviceTemplateDiv">Service</option>
+                            <option value="modelTemplateDiv">Domain</option>
+                            <option value="applicationTemplateDiv">Application</option>
+                            <option value="configTemplateDiv">Config</option>
+                            <option value="pomTemplateDiv">Pom</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-default" onclick="clearCache()">Reset</button>
+                    <button type="button" class="btn btn-default" onclick="save()">Save</button>
+                    <button type="button" class="btn btn-default" onclick="generatorSpringBootPop()">Generate
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </nav>
+</section>
+<div class="row" style="height: 100%">
+
+    <div class="col-xs-12" style="height: 100%;padding-top: 10px" id="settingTemplateDiv">
+        <div id="settingTemplate" style="width:100%;height:100%"></div>
+    </div>
+    <div class="col-xs-12" style="height: 100%;padding-top: 10px" id="queryTemplateDiv">
+        <div id="queryTemplate" style="width:100%;height:100%"></div>
+    </div>
+    <div class="col-xs-12" style="height: 100%;padding-top: 10px" id="controllerTemplateDiv">
+        <div id="controllerTemplate" style="width:100%;height:100%"></div>
+    </div>
+    <div class="col-xs-12" style="height: 100%;padding-top: 10px" id="applicationTemplateDiv">
+        <div id="applicationTemplate" style="width:100%;height:100%"></div>
+    </div>
+    <div class="col-xs-12" style="height: 100%;padding-top: 10px" id="configTemplateDiv">
+        <div id="configTemplate" style="width:100%;height:100%"></div>
+    </div>
+    <div class="col-xs-12" style="height: 100%;padding-top: 10px" id="pomTemplateDiv">
+        <div id="pomTemplate" style="width:100%;height:100%"></div>
+    </div>
+    <div class="col-xs-12" style="height: 100%;padding-top: 10px" id="modelTemplateDiv">
+        <div id="modelTemplate" style="width:100%;height:100%"></div>
+    </div>
+    <div class="col-xs-12" style="height: 100%;padding-top: 10px" id="serviceTemplateDiv">
+        <div id="serviceTemplate" style="width:100%;height:100%"></div>
+    </div>
+</div>
+<div class='modal' id='generatorSpringBootPop'>
+    <div class='modal-dialog'>
+        <div class='modal-content'>
+            <div class='modal-header'>
+                <button type='button' class='close' data-dismiss='modal'>
+                    <span aria-hidden='true'>×</span><span class='sr-only'>Close</span>
+                </button>
+                <h4 class='modal-title'>Generate SpringBoot Project</h4>
+            </div>
+            <div class='modal-body'>
+                <form onsubmit="generate()" action="javascript:void(0)" method="get" role='form'>
+                    <div class='form-group'>
+                        <label>Artifact:</label>
+                        <input type='text' class='form-control' id="artifact" value="demo" placeholder="demo">
+                    </div>
+                    <div class='form-group'>
+                        <label>Package path:</label>
+                        <input type='text' class='form-control' id="packagePath" value="com.example"
+                               placeholder="com.example">
+                    </div>
+                    <div class='modal-footer'>
+                        <button type='button' class='btn btn-default'
+                                data-dismiss='modal'>Close
+                        </button>
+                        <button type="submit" class='btn btn-primary'>Generate</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.bootcss.com/mustache.js/3.0.1/mustache.js"></script>
+<script src="https://cdn.bootcss.com/FileSaver.js/2014-11-29/FileSaver.js"></script>
+<script src="https://cdn.bootcss.com/jszip/3.1.5/jszip.min.js"></script>
+<script src="https://cdn.bootcss.com/jquery/2.2.3/jquery.min.js"></script>
+<script src="https://cdn.bootcss.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.14.3/min/vs/loader.js"></script>
+<script>
+    let settingsEditor;
+    let queryTemplate;
+    let controllerTemplate;
+    let configTemplate;
+    let pomTemplate;
+    let applicationTemplate;
+    let modelTemplate;
+    let serviceTemplate;
+
+    function loadSettingsEditor(settings) {
+        let container = document.getElementById('settingTemplate');
+        let defaultOption = {
+            value: settings,
+            language: 'json'
+        };
+        require.config({paths: {'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.14.3/min/vs/'}});
+        require(['vs/editor/editor.main'], function () {
+            settingsEditor = monaco.editor.create(container, defaultOption);
+
+            window.onresize = function () {
+                settingsEditor.layout();
+            };
+        });
+    }
+
+    function loadQueryTemplateEditor(template) {
+        let container = document.getElementById('queryTemplate');
+        let defaultOption = {
+            value: template,
+            language: 'java'
+        };
+        require.config({paths: {'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.14.3/min/vs/'}});
+        require(['vs/editor/editor.main'], function () {
+            queryTemplate = monaco.editor.create(container, defaultOption);
+
+            window.onresize = function () {
+                queryTemplate.layout();
+            };
+        });
+    }
+
+    function loadControllerTemplateEditor(template) {
+        let container = document.getElementById('controllerTemplate');
+        let defaultOption = {
+            value: template,
+            language: 'java'
+        };
+        require.config({paths: {'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.14.3/min/vs/'}});
+        require(['vs/editor/editor.main'], function () {
+            controllerTemplate = monaco.editor.create(container, defaultOption);
+
+            window.onresize = function () {
+                controllerTemplate.layout();
+            };
+        });
+    }
+
+    function loadConfigTemplateEditor(template) {
+        let container = document.getElementById('configTemplate');
+        let defaultOption = {
+            value: template,
+            language: 'yaml'
+        };
+        require.config({paths: {'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.14.3/min/vs/'}});
+        require(['vs/editor/editor.main'], function () {
+            configTemplate = monaco.editor.create(container, defaultOption);
+
+            window.onresize = function () {
+                configTemplate.layout();
+            };
+        });
+    }
+
+    function loadApplicationTemplateEditor(template) {
+        let container = document.getElementById('applicationTemplate');
+        let defaultOption = {
+            value: template,
+            language: 'java'
+        };
+        require.config({paths: {'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.14.3/min/vs/'}});
+        require(['vs/editor/editor.main'], function () {
+            applicationTemplate = monaco.editor.create(container, defaultOption);
+
+            window.onresize = function () {
+                applicationTemplate.layout();
+            };
+        });
+    }
+
+    function loadPomTemplateEditor(template) {
+        let container = document.getElementById('pomTemplate');
+        let defaultOption = {
+            value: template,
+            language: 'xml'
+        };
+        require.config({paths: {'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.14.3/min/vs/'}});
+        require(['vs/editor/editor.main'], function () {
+            pomTemplate = monaco.editor.create(container, defaultOption);
+
+            window.onresize = function () {
+                pomTemplate.layout();
+            };
+        });
+    }
+
+    function loadModelTemplateEditor(template) {
+        let container = document.getElementById('modelTemplate');
+        let defaultOption = {
+            value: template,
+            language: 'java'
+        };
+        require.config({paths: {'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.14.3/min/vs/'}});
+        require(['vs/editor/editor.main'], function () {
+            modelTemplate = monaco.editor.create(container, defaultOption);
+
+            window.onresize = function () {
+                pomTemplate.layout();
+            };
+        });
+    }
+
+    function loadServiceTemplateEditor(template) {
+        let container = document.getElementById('serviceTemplate');
+        let defaultOption = {
+            value: template,
+            language: 'java'
+        };
+        require.config({paths: {'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.14.3/min/vs/'}});
+        require(['vs/editor/editor.main'], function () {
+            serviceTemplate = monaco.editor.create(container, defaultOption);
+
+            window.onresize = function () {
+                pomTemplate.layout();
+            };
+        });
+    }
+
+    function generate() {
+        let packagePath = document.getElementById("packagePath").value;
+        let artifact = document.getElementById("artifact").value;
+        let zip = new JSZip();
+        let settings = JSON.parse(settingsEditor.getValue());
+        for (let indexName in settings) {
+            let mappings = settings[indexName];
+            let indexTypes = mappings["mappings"];
+            for (let indexType in indexTypes) {
+                let propertiesCollection = indexTypes[indexType];
+                let fields = getFields(propertiesCollection["properties"], []);
+                let index = {
+                    "modelName": upperCamel(indexName),
+                    "indexName": indexName,
+                    "lowerIndexName": lowerCamel(indexName),
+                    "indexType": indexType,
+                    "fields": fields,
+                    "packagePath": packagePath,
+                    "artifact": artifact,
+                    "application": upperCamel(artifact)
+                };
+                let value = queryTemplate.getValue();
+                let render = Mustache.render(value, index);
+                let query = artifact + "/src/main/java/" + packagePath.replace(/[.]/g, "/") + "/domain/query/" + index["modelName"] + "QueryBuilder.java";
+                zip.file(query, render);
+
+                value = controllerTemplate.getValue();
+                render = Mustache.render(value, index);
+                let controller = artifact + "/src/main/java/" + packagePath.replace(/[.]/g, "/") + "/controller/" + index["modelName"] + "Controller.java";
+                zip.file(controller, render);
+
+                value = serviceTemplate.getValue();
+                render = Mustache.render(value, index);
+                let service = artifact + "/src/main/java/" + packagePath.replace(/[.]/g, "/") + "/service/" + index["modelName"] + "Service.java";
+                zip.file(service, render);
+
+                let models = getModels(propertiesCollection["properties"], indexName, {}, []);
+                for (const modelName in models) {
+                    value = modelTemplate.getValue();
+                    index["fields"] = models[modelName];
+                    index["modelName"] = modelName;
+                    render = Mustache.render(value, index);
+                    let model = artifact + "/src/main/java/" + packagePath.replace(/[.]/g, "/") + "/domain/" + modelName + ".java";
+                    zip.file(model, render);
+                }
+
+
+            }
+            zip.file(artifact + "/src/main/resources/mappings/" + indexName + ".json", JSON.stringify(mappings, null, 2));
+        }
+        zip.file(artifact + "/src/main/resources/mappings/settings.json", JSON.stringify(settings, null, 2));
+
+        let project = {"packagePath": packagePath, "artifact": artifact};
+        zip.file(artifact + "/pom.xml", Mustache.render(pomTemplate.getValue(), project));
+        zip.file(artifact + "/src/main/resources/application.yml", Mustache.render(configTemplate.getValue(), project));
+        zip.file(artifact + "/src/main/java/" + packagePath.replace(/[.]/g, "/") + "/Application.java", Mustache.render(applicationTemplate.getValue(), project));
+
+        zip.generateAsync({type: "blob"})
+            .then(function (content) {
+                saveAs(content, artifact + ".zip");
+            });
+
+    }
+
+    function getFields(properties, fields) {
+        for (let name in properties) {
+            let attributes = properties[name];
+            let analyzer = attributes["analyzer"];
+            let type = attributes["type"];
+            let format = attributes["format"];
+            let remark = attributes["remark"];
+            let attributeFields = attributes["fields"];
+            let childrenProperties = attributes["properties"];
+
+            let field = {
+                "name": name,
+                "lowerName": lowerCamel(name),
+                "upperName": upperCamel(name),
+                "underlineName": toLine(name)
+            };
+
+            if (remark) {
+                field["remark"] = remark;
+            }
+
+            if (type) {
+                field["type"] = type;
+                if ("ip" === type || "range" === type || "completion" === type || "nested" === type || "binary" === type ||
+                    "attachment" === type ||
+                    "object" === type ||
+                    "url" === type) {
+                    continue;
+                }
+                field["propertyType"] = typeMapping[type];
+                if (type === "date" && format === "epoch_millis") {
+                    field["isEpochMillis"] = true;
+                } else if (type === "date") {
+                    field["isDate"] = true;
+                } else if (type === "geo_point") {
+                    field["isGeoPoint"] = true;
+                } else if (type === "text" || type === "string") {
+                    field["isText"] = true;
+                } else {
+                    field["isNormal"] = true;
+                }
+
+            } else {
+                field["type"] = "object";
+                field["propertyType"] = upperCamel(name);
+            }
+
+
+            if (attributeFields) {
+                let attributesField = {
+                    "name": name + ".keyword",
+                    "analyzer": analyzer,
+                    "type": "keyword",
+                    "isNormal": true,
+                    "lowerName": lowerCamel(name + "_keyword"),
+                    "upperName": upperCamel(name + "_keyword"),
+                    "underlineName": toLine(name + "_keyword")
+                };
+                attributesField["propertyType"] = typeMapping[type];
+                fields.push(attributesField);
+            }
+
+
+            if (format) {
+                field["format"] = format;
+            }
+
+            if (analyzer) {
+                field["analyzer"] = analyzer;
+            }
+
+            if (childrenProperties) {
+                let childrenFields = getFields(childrenProperties, []);
+                for (const childrenField of childrenFields) {
+                    let childFieldName = childrenField["name"];
+                    let underlineName = toLine(name) + "_" + toLine(childFieldName);
+                    childrenField["name"] = name + "." + childFieldName
+                    childrenField["lowerName"] = lowerCamel(underlineName);
+                    childrenField["upperName"] = upperCamel(underlineName);
+                    childrenField["underlineName"] = underlineName;
+                    fields.push(childrenField);
+                }
+            }
+
+            if (type && type !== "object") {
+                fields.push(field);
+            }
+
+        }
+        return fields;
+    }
+
+    function getModels(properties, parentName, models, fields) {
+        for (let name in properties) {
+            let attributes = properties[name];
+            let analyzer = attributes["analyzer"];
+            let type = attributes["type"];
+            let format = attributes["format"];
+            let remark = attributes["remark"];
+            let attributeFields = attributes["fields"];
+            let childrenProperties = attributes["properties"];
+            let enabled = attributes["enabled"];
+
+            let field = {
+                "name": name,
+                "lowerName": lowerCamel(name),
+                "upperName": upperCamel(name),
+                "underlineName": toLine(name)
+            };
+
+            if (remark) {
+                field["remark"] = remark;
+                attributes["remark"] = undefined;
+            }
+
+            if (enabled !== undefined) {
+                field["propertyType"] = "Object";
+                field["isNormal"] = true;
+                field["type"] = "object";
+                fields.push(field);
+                continue;
+            }
+
+            if (type) {
+                field["type"] = type;
+                field["propertyType"] = typeMapping[type];
+                if (type === "date" && format === "epoch_millis") {
+                    field["isEpochMillis"] = true;
+                } else if (type === "date") {
+                    field["isDate"] = true;
+                } else if (type === "geo_point") {
+                    field["isGeoPoint"] = true;
+                } else if (type === "text" || type === "string") {
+                    field["isText"] = true;
+                } else {
+                    field["isNormal"] = true;
+                }
+
+
+            } else {
+                field["type"] = "object";
+                if (properties) {
+                    field["propertyType"] = upperCamel(parentName + "." + name);
+                }
+            }
+
+            if (format) {
+                field["format"] = format;
+            }
+
+            if (analyzer) {
+                field["analyzer"] = analyzer;
+            }
+
+            if (childrenProperties) {
+                let childrenFields = [];
+                getModels(childrenProperties, parentName + "." + name, models, childrenFields);
+                models[upperCamel(parentName + "." + name)] = childrenFields;
+            }
+
+            fields.push(field);
+        }
+
+        models[upperCamel(parentName)] = fields;
+        return models;
+    }
+
+
+    function lowerCamel(name) {
+        return name.replace(/[^a-zA-Z0-9]/g, "_").replace(/_([a-z0-9_A-Z])/g, function (all, letter) {
+            return letter.toUpperCase();
+        });
+    }
+
+    function upperCamel(name) {
+        let lower = lowerCamel(name);
+        if (lower.length > 1) {
+            return lower.substr(0, 1).toUpperCase() + lower.substr(1, lower.length - 1);
+        }
+        return lower.toUpperCase();
+    }
+
+    function toLine(name) {
+        return name.replace(/([A-Z])/g, "_$1").toLowerCase();
+    }
+
+    let typeMapping = {
+        "string": "String",
+        "keyword": "String",
+        "text": "String",
+        "ip": "String",
+        "range": "String",
+        "completion": "String",
+        "object": "java.util.Map<String,Object>",
+        "nested": "java.util.Map<String,Object>",
+        "geo_point": "Double[]",
+        "geo_shape": "Double[]",
+        "long": "Long",
+        "token_count": "Long",
+        "integer": "Integer",
+        "short": "Short",
+        "byte": "Byte",
+        "double": "Double",
+        "float": "Float",
+        "half_float": "Float",
+        "scaled_float": "Float",
+        "date": "java.util.Date",
+        "boolean": "Boolean",
+        "binary": "Byte[]",
+        "attachment": "Byte[]",
+    };
+
+    function loadingSettings() {
+        let storage = window.localStorage;
+        let settings = storage.getItem("es.settings");
+        if (settings) {
+            loadSettingsEditor(settings);
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    loadSettingsEditor(xhr.responseText);
+                } else {
+                    alert(xhr.status);
+                }
+            };
+
+            xhr.open("get", "./template/example.json");
+            xhr.send(null);
+        }
+    }
+
+
+    function loadingQueryEditor() {
+        let storage = window.localStorage;
+        let template = storage.getItem("es.queryTemplate");
+        if (template) {
+            loadQueryTemplateEditor(template);
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    loadQueryTemplateEditor(xhr.responseText);
+                } else {
+                    alert(xhr.status);
+                }
+            };
+
+            xhr.open("get", "./template/query.mustache");
+            xhr.send(null);
+        }
+    }
+
+    function loadingControllerEditor() {
+        let storage = window.localStorage;
+        let template = storage.getItem("es.controllerTemplate");
+        if (template) {
+            loadControllerTemplateEditor(template);
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    loadControllerTemplateEditor(xhr.responseText);
+                } else {
+                    alert(xhr.status);
+                }
+            };
+
+            xhr.open("get", "./template/controller.mustache");
+            xhr.send(null);
+        }
+    }
+
+
+    function loadingPomEditor() {
+        let storage = window.localStorage;
+        let template = storage.getItem("es.pomTemplate");
+        if (template) {
+            loadPomTemplateEditor(template);
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    loadPomTemplateEditor(xhr.responseText);
+                } else {
+                    alert(xhr.status);
+                }
+            };
+
+            xhr.open("get", "./template/pom.mustache");
+            xhr.send(null);
+        }
+    }
+
+
+    function loadingConfigEditor() {
+        let storage = window.localStorage;
+        let template = storage.getItem("es.configTemplate");
+        if (template) {
+            loadConfigTemplateEditor(template);
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    loadConfigTemplateEditor(xhr.responseText);
+                } else {
+                    alert(xhr.status);
+                }
+            };
+
+            xhr.open("get", "./template/application.yml");
+            xhr.send(null);
+        }
+    }
+
+
+    function loadingApplicationEditor() {
+        let storage = window.localStorage;
+        let template = storage.getItem("es.applicationTemplate");
+        if (template) {
+            loadApplicationTemplateEditor(template);
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    loadApplicationTemplateEditor(xhr.responseText);
+                } else {
+                    alert(xhr.status);
+                }
+            };
+
+            xhr.open("get", "./template/application.mustache");
+            xhr.send(null);
+        }
+    }
+
+
+    function loadingModelEditor() {
+        let storage = window.localStorage;
+        let template = storage.getItem("es.modelTemplate");
+        if (template) {
+            loadModelTemplateEditor(template);
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    loadModelTemplateEditor(xhr.responseText);
+                } else {
+                    alert(xhr.status);
+                }
+            };
+
+            xhr.open("get", "./template/model.mustache");
+            xhr.send(null);
+        }
+    }
+
+    function loadingServiceEditor() {
+        let storage = window.localStorage;
+        let template = storage.getItem("es.serviceTemplate");
+        if (template) {
+            loadServiceTemplateEditor(template);
+        } else {
+            var xhr = new XMLHttpRequest();
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    loadServiceTemplateEditor(xhr.responseText);
+                } else {
+                    alert(xhr.status);
+                }
+            };
+
+            xhr.open("get", "./template/service.mustache");
+            xhr.send(null);
+        }
+    }
+
+
+    loadingSettings();
+    loadingQueryEditor();
+    loadingControllerEditor();
+    loadingConfigEditor();
+    loadingApplicationEditor();
+    loadingPomEditor();
+    loadingModelEditor();
+    loadingServiceEditor();
+
+    function clearCache() {
+        let storage = window.localStorage;
+        storage.removeItem("es.settings");
+        storage.removeItem("es.queryTemplate");
+        storage.removeItem("es.controllerTemplate");
+        storage.removeItem("es.configTemplate");
+        storage.removeItem("es.pomTemplate");
+        storage.removeItem("es.applicationTemplate");
+        storage.removeItem("es.modelTemplate");
+        storage.removeItem("es.serviceTemplate");
+        window.location.reload()
+    }
+
+    function save() {
+        let storage = window.localStorage;
+        storage.setItem("es.settings", settingsEditor.getValue());
+        storage.setItem("es.queryTemplate", queryTemplate.getValue());
+        storage.setItem("es.controllerTemplate", controllerTemplate.getValue());
+        storage.setItem("es.configTemplate", configTemplate.getValue());
+        storage.setItem("es.pomTemplate", pomTemplate.getValue());
+        storage.setItem("es.applicationTemplate", applicationTemplate.getValue());
+        storage.setItem("es.modelTemplate", modelTemplate.getValue());
+        storage.setItem("es.serviceTemplate", modelTemplate.getValue());
+        alert("success")
+    }
+
+    function changeTemplate() {
+        hiddenTemplate();
+        document.getElementById(document.getElementById("selectTemplate").value).hidden = false;
+    }
+
+    function hiddenTemplate() {
+        document.getElementById("settingTemplateDiv").hidden = true;
+        document.getElementById("queryTemplateDiv").hidden = true;
+        document.getElementById("controllerTemplateDiv").hidden = true;
+        document.getElementById("configTemplateDiv").hidden = true;
+        document.getElementById("pomTemplateDiv").hidden = true;
+        document.getElementById("applicationTemplateDiv").hidden = true;
+        document.getElementById("modelTemplateDiv").hidden = true;
+        document.getElementById("serviceTemplateDiv").hidden = true;
+    }
+
+    function generatorSpringBootPop() {
+        $('#generatorSpringBootPop').modal('toggle')
+    }
+</script>
+</body>
+</html>
