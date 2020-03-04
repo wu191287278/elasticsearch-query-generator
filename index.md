@@ -13,7 +13,7 @@ generator 是一个纯静态html编写的查询生成器,可以快速根据mappi
 
 ### ElasticSearch Query
 
-前往 [ElasticSearch Query](https://wu191287278.github.io/generator/index.html) 生成代码
+前往 [ElasticSearch Query](https://wu191287278.github.io/elasticsearch-query-generator/) 生成代码
 
 
 
